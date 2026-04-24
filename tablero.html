@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Levantamiento AGEB · Geomática MX</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Barlow:wght@400;500&family=Space+Mono&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --acc:#D85A30;--acc2:#e8763a;
+  --bg:#f5f3ef;--ink:#111;--ink2:#222;--ink3:#444;
+  --mut:#888;--brd:#ddd;--surf:#fff;
+  --grn:#2d6a2d;--red:#8B1A1A;--yel:#7a5c00;--blu:#1a4a6e;
+  --ma:#C0392B;--al:#D35400;--me:#B7950B;--ba:#2E86AB;
+}
+body{font-family:'Barlow',sans-serif;background:var(--bg);color:var(--ink);min-height:100vh}
+
+/* ── HEADER ── */
+header{background:var(--ink);color:#e8e4dc;padding:16px 32px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #333}
+.brand{display:flex;flex-direction:column;gap:2px}
+.brand-title{font-family:'Barlow Condensed',sans-serif;font-size:22px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#e8e4dc}
+.header-meta{text-align:right;font-family:'Space Mono',monospace}
+
+/* ── FILTERS ── */
+.filters{background:var(--surf);border-bottom:1px solid var(--brd);padding:10px 32px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.filters label{font-family:'Barlow Condensed',sans-serif;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--mut)}
+.filters select{padding:6px 10px;background:var(--bg);border:1px solid var(--brd);border-radius:3px;font-family:'Barlow',sans-serif;font-size:13px;color:var(--ink);outline:none;cursor:pointer}
+.filters select:focus{border-color:var(--acc)}
+.filter-group{display:flex;align-items:center;gap:6px}
+#btn-reset{padding:6px 14px;background:none;border:1px solid var(--brd);border-radius:3px;font-family:'Barlow Condensed',sans-serif;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--mut);cursor:pointer;transition:all .2s}
+#btn-reset:hover{border-color:var(--acc);color:var(--acc)}
+.rec-count{margin-left:auto;font-family:'Space Mono',monospace;font-size:11px;color:var(--mut)}
+
+/* ── MAIN GRID ── */
+.main{padding:24px 32px;display:grid;grid-template-columns:1fr 1fr 1fr 1fr;grid-template-rows:auto auto auto;gap:16px}
+
+/* ── KPI CARDS ── */
+.kpi{background:var(--surf);border:1px solid var(--brd);border-radius:6px;padding:18px 20px;display:flex;flex-direction:column;gap:4px;border-top:3px solid var(--acc);position:relative;overflow:hidden}
+.kpi::after{content:attr(data-icon);position:absolute;right:16px;top:50%;transform:translateY(-50%);font-size:36px;opacity:.07}
+.kpi-label{font-family:'Barlow Condensed',sans-serif;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--mut)}
+.kpi-val{font-family:'Barlow Condensed',sans-serif;font-size:36px;font-weight:900;line-height:1;color:var(--ink)}
+.kpi-sub{font-size:11px;color:var(--mut)}
+.kpi.red{border-top-color:var(--ma)}.kpi.red .kpi-val{color:var(--ma)}
+.kpi.grn{border-top-color:var(--grn)}.kpi.grn .kpi-val{color:var(--grn)}
+.kpi.blu{border-top-color:var(--blu)}.kpi.blu .kpi-val{color:var(--blu)}
+
+/* ── PANELS ── */
+.panel{background:var(--surf);border:1px solid var(--brd);border-radius:6px;overflow:hidden}
+.panel-hdr{padding:12px 16px;border-bottom:1px solid var(--brd);display:flex;justify-content:space-between;align-items:center}
+.panel-title{font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:var(--ink2)}
+.panel-sub{font-size:11px;color:var(--mut);font-family:'Space Mono',monospace}
+.panel-body{padding:16px}
+
+/* MAP */
+#map-panel{grid-column:1/3;grid-row:2/4}
+#map{height:420px;border-radius:0}
+
+/* CHARTS */
+.chart-wrap{position:relative;height:200px}
+.chart-wrap-sm{position:relative;height:160px}
+
+/* GRADO BARS */
+.grado-bars{display:flex;flex-direction:column;gap:8px;padding:16px}
+.gbar-row{display:flex;align-items:center;gap:10px}
+.gbar-label{font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;width:70px;flex-shrink:0}
+.gbar-track{flex:1;height:20px;background:#eee;border-radius:2px;overflow:hidden}
+.gbar-fill{height:100%;border-radius:2px;transition:width .6s ease;display:flex;align-items:center;justify-content:flex-end;padding-right:6px}
+.gbar-fill span{font-size:10px;font-weight:700;color:#fff;font-family:'Space Mono',monospace}
+.gbar-pct{font-family:'Space Mono',monospace;font-size:11px;color:var(--mut);width:36px;text-align:right;flex-shrink:0}
+
+/* INCIDENCIAS TABLE */
+.inc-table{width:100%;border-collapse:collapse;font-size:12px}
+.inc-table th{font-family:'Barlow Condensed',sans-serif;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--mut);padding:6px 10px;text-align:left;border-bottom:2px solid var(--brd)}
+.inc-table td{padding:7px 10px;border-bottom:1px solid #f0ede8;vertical-align:middle}
+.inc-table tr:last-child td{border-bottom:none}
+.inc-bar{height:6px;background:var(--acc);border-radius:2px;min-width:4px}
+.inc-n{font-family:'Space Mono',monospace;font-size:11px;color:var(--mut);text-align:right}
+
+/* AGEB TABLE */
+.ageb-table{width:100%;border-collapse:collapse;font-size:12px}
+.ageb-table th{font-family:'Barlow Condensed',sans-serif;font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--mut);padding:6px 10px;text-align:left;border-bottom:2px solid var(--brd)}
+.ageb-table td{padding:7px 10px;border-bottom:1px solid #f0ede8}
+.ageb-table tr:last-child td{border-bottom:none}
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;color:#fff}
+.badge-ma{background:var(--ma)}.badge-al{background:var(--al)}.badge-me{background:var(--me);color:#fff}.badge-ba{background:var(--ba)}
+
+/* GRID LAYOUT */
+.kpi-row{grid-column:1/5;display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:16px}
+#map-panel{grid-column:1/3}
+#grado-panel{grid-column:3/5;grid-row:2}
+#cats-panel{grid-column:3/4;grid-row:3}
+#mun-panel{grid-column:4/5;grid-row:3}
+#inc-panel{grid-column:1/3;grid-row:4}
+#ageb-panel{grid-column:3/5;grid-row:4}
+
+/* NO DATA */
+.no-data{text-align:center;padding:60px 20px;color:var(--mut)}
+.no-data-icon{font-size:40px;margin-bottom:12px}
+.no-data-txt{font-family:'Barlow Condensed',sans-serif;font-size:14px;letter-spacing:2px;text-transform:uppercase}
+.no-data-sub{font-size:12px;margin-top:6px}
+
+
+
+/* MAP LEGEND */
+.map-legend{background:rgba(255,255,255,.92);border:1px solid var(--brd);border-radius:4px;padding:8px 10px;font-size:11px;line-height:2}
+.ml-row{display:flex;align-items:center;gap:6px}
+.ml-sq{width:10px;height:10px;border-radius:2px;flex-shrink:0}
+
+@media(max-width:900px){
+  .main{grid-template-columns:1fr 1fr;padding:16px}
+  .kpi-row{grid-template-columns:1fr 1fr}
+  #map-panel,#grado-panel,#cats-panel,#mun-panel,#inc-panel,#ageb-panel{grid-column:1/3;grid-row:auto}
+  header{padding:16px}
+  .filters{padding:10px 16px}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="brand-title">Jornada en Campo 2026</div>
+  </div>
+  <div class="header-meta">
+    <div id="last-update" style="color:#888;font-size:11px">Cargando datos…</div>
+  </div>
+</header>
+
+
+
+<div class="filters" id="filters" style="display:none">
+  <div class="filter-group">
+    <label>Municipio</label>
+    <select id="f-mun" onchange="applyFilters()"><option value="">Todos</option></select>
+  </div>
+  <div class="filter-group">
+    <label>Grado</label>
+    <select id="f-grado" onchange="applyFilters()">
+      <option value="">Todos</option>
+      <option>Muy alto</option><option>Alto</option><option>Medio</option><option>Bajo</option>
+    </select>
+  </div>
+  <div class="filter-group">
+    <label>Categoría</label>
+    <select id="f-cat" onchange="applyFilters()"><option value="">Todas</option></select>
+  </div>
+  <div class="filter-group">
+    <label>Fecha</label>
+    <select id="f-fecha" onchange="applyFilters()"><option value="">Todas las jornadas</option></select>
+  </div>
+  <button id="btn-reset" onclick="resetFilters()">✕ Limpiar</button>
+  <span class="rec-count" id="rec-count"></span>
+</div>
+
+<div class="main" id="main" style="display:none">
+
+  <div class="kpi-row">
+    <div class="kpi" data-icon="📍"><div class="kpi-label">Observaciones</div><div class="kpi-val" id="k-obs">—</div><div class="kpi-sub" id="k-obs-sub"></div></div>
+    <div class="kpi red" data-icon="🏚"><div class="kpi-label">AGEBs cubiertos</div><div class="kpi-val" id="k-ageb">—</div><div class="kpi-sub" id="k-ageb-sub"></div></div>
+    <div class="kpi grn" data-icon="🗺"><div class="kpi-label">Municipios</div><div class="kpi-val" id="k-mun">—</div><div class="kpi-sub" id="k-mun-sub"></div></div>
+    <div class="kpi blu" data-icon="📅"><div class="kpi-label">Jornadas</div><div class="kpi-val" id="k-jornadad">—</div><div class="kpi-sub" id="k-jornada-sub"></div></div>
+  </div>
+
+  <div class="panel" id="map-panel">
+    <div class="panel-hdr">
+      <span class="panel-title">Distribución espacial</span>
+      <span class="panel-sub" id="map-count"></span>
+    </div>
+    <div id="map"></div>
+  </div>
+
+  <div class="panel" id="grado-panel">
+    <div class="panel-hdr">
+      <span class="panel-title">Grado de marginación</span>
+      <span class="panel-sub">por observación</span>
+    </div>
+    <div class="grado-bars" id="grado-bars"></div>
+  </div>
+
+  <div class="panel" id="cats-panel">
+    <div class="panel-hdr"><span class="panel-title">Por categoría</span></div>
+    <div class="panel-body"><div class="chart-wrap"><canvas id="ch-cat"></canvas></div></div>
+  </div>
+
+  <div class="panel" id="mun-panel">
+    <div class="panel-hdr"><span class="panel-title">Por municipio</span></div>
+    <div class="panel-body"><div class="chart-wrap"><canvas id="ch-mun"></canvas></div></div>
+  </div>
+
+  <div class="panel" id="inc-panel">
+    <div class="panel-hdr">
+      <span class="panel-title">Incidencias urbanas</span>
+      <span class="panel-sub" id="inc-total"></span>
+    </div>
+    <div class="panel-body">
+      <table class="inc-table">
+        <thead><tr><th>Observación</th><th style="width:120px">Frecuencia</th><th style="width:40px"></th></tr></thead>
+        <tbody id="inc-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel" id="ageb-panel">
+    <div class="panel-hdr">
+      <span class="panel-title">AGEBs levantados</span>
+      <span class="panel-sub">por grado de marginación</span>
+    </div>
+    <div class="panel-body" style="max-height:300px;overflow-y:auto">
+      <table class="ageb-table">
+        <thead><tr><th>AGEB</th><th>Municipio</th><th>IM 2020</th><th>Grado</th><th style="width:40px">Obs.</th></tr></thead>
+        <tbody id="ageb-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel" id="timeline-panel" style="grid-column:1/5">
+    <div class="panel-hdr">
+      <span class="panel-title">Ritmo de levantamiento</span>
+      <span class="panel-sub">observaciones por jornada</span>
+    </div>
+    <div class="panel-body"><div style="position:relative;height:160px"><canvas id="ch-time"></canvas></div></div>
+  </div>
+
+</div>
+
+<div id="no-data" style="display:none" class="no-data" style="padding:80px">
+  <div class="no-data-icon">◎</div>
+  <div class="no-data-txt">Sin datos para los filtros seleccionados</div>
+</div>
+
+<script>
+// ── STATE ─────────────────────────────────────────────────────────────────────
+var allData = [];
+var filtered = [];
+var map, markersLayer;
+var charts = {};
+
+// ── CSV AUTO-LOAD ─────────────────────────────────────────────────────────────
+function autoLoad() {
+  fetch('./datos.csv?v=' + Date.now())
+    .then(function(r) {
+      if (!r.ok) throw new Error('No se encontró datos.csv');
+      return r.text();
+    })
+    .then(function(text) {
+      allData = parseCSV(text);
+      if (allData.length === 0) { showError('El archivo datos.csv está vacío.'); return; }
+      populateFilters();
+      applyFilters();
+      document.getElementById('filters').style.display = 'flex';
+      document.getElementById('main').style.display = 'grid';
+      var ultima = allData.map(function(d){return d.fecha;}).filter(Boolean).sort().pop() || '';
+      document.getElementById('last-update').textContent =
+        'Corte: ' + ultima + ' · ' + allData.length + ' registros';
+    })
+    .catch(function(err) {
+      showError('Sin datos disponibles por el momento.');
+      console.warn(err);
+    });
+}
+
+function showError(msg) {
+  document.getElementById('no-data').style.display = 'block';
+  document.getElementById('no-data').innerHTML =
+    '<div class="no-data-icon">◎</div>' +
+    '<div class="no-data-txt">' + msg + '</div>' +
+    '<div class="no-data-sub">Contacta al administrador.</div>';
+}
+
+function parseCSV(text) {
+  // Remove BOM
+  text = text.replace(/^\uFEFF/, '');
+  var lines = text.split(/\r?\n/).filter(function(l) { return l.trim(); });
+  if (lines.length < 2) return [];
+  var headers = parseLine(lines[0]);
+  var rows = [];
+  for (var i = 1; i < lines.length; i++) {
+    var vals = parseLine(lines[i]);
+    if (vals.length < 4) continue;
+    var row = {};
+    headers.forEach(function(h, j) { row[h.trim()] = (vals[j] || '').trim(); });
+    if (row.lat && row.lon) rows.push(row);
+  }
+  return rows;
+}
+
+function parseLine(line) {
+  var result = [], cur = '', inQ = false;
+  for (var i = 0; i < line.length; i++) {
+    var c = line[i];
+    if (c === '"') { inQ = !inQ; }
+    else if (c === ',' && !inQ) { result.push(cur); cur = ''; }
+    else cur += c;
+  }
+  result.push(cur);
+  return result;
+}
+
+// ── FILTERS ───────────────────────────────────────────────────────────────────
+function populateFilters() {
+  var muns   = [...new Set(allData.map(function(d){return d.municipio}).filter(Boolean))].sort();
+  var cats   = [...new Set(allData.map(function(d){return d.categoria}).filter(Boolean))].sort();
+  var fechas = [...new Set(allData.map(function(d){return d.fecha}).filter(Boolean))].sort().reverse();
+
+  fillSelect('f-mun',   muns);
+  fillSelect('f-cat',   cats);
+  fillSelect('f-fecha', fechas);
+}
+
+function fillSelect(id, opts) {
+  var sel = document.getElementById(id);
+  while (sel.options.length > 1) sel.remove(1);
+  opts.forEach(function(o) { var opt = document.createElement('option'); opt.value = o; opt.textContent = o; sel.appendChild(opt); });
+}
+
+function applyFilters() {
+  var mun   = document.getElementById('f-mun').value;
+  var grado = document.getElementById('f-grado').value;
+  var cat   = document.getElementById('f-cat').value;
+  var fecha = document.getElementById('f-fecha').value;
+
+  filtered = allData.filter(function(d) {
+    return (!mun   || d.municipio === mun) &&
+           (!grado || d.grado_marginacion === grado) &&
+           (!cat   || d.categoria === cat) &&
+           (!fecha || d.fecha === fecha);
+  });
+
+  document.getElementById('rec-count').textContent = filtered.length + ' registros';
+  renderAll();
+}
+
+function resetFilters() {
+  ['f-mun','f-grado','f-cat','f-fecha'].forEach(function(id) { document.getElementById(id).value = ''; });
+  applyFilters();
+}
+
+// ── RENDER ALL ────────────────────────────────────────────────────────────────
+function renderAll() {
+  if (filtered.length === 0) {
+    document.getElementById('no-data').style.display = 'block';
+    document.getElementById('main').style.display = 'none';
+    return;
+  }
+  document.getElementById('no-data').style.display = 'none';
+  document.getElementById('main').style.display = 'grid';
+
+  renderKPIs();
+  renderMap();
+  renderGradoBars();
+  renderCatChart();
+  renderMunChart();
+  renderIncTable();
+  renderAGEBTable();
+  renderTimeline();
+}
+
+// ── KPIs ──────────────────────────────────────────────────────────────────────
+function renderKPIs() {
+  var totalObs  = filtered.length;
+  var gruposU   = new Set(filtered.map(function(d){return d.grupo_id||d.id})).size;
+  var agebs     = new Set(filtered.map(function(d){return d.cvegeo}).filter(Boolean)).size;
+  var muns      = new Set(filtered.map(function(d){return d.municipio}).filter(Boolean)).size;
+  var fechas    = new Set(filtered.map(function(d){return d.fecha}).filter(Boolean)).size;
+  var ultFecha  = filtered.map(function(d){return d.fecha}).filter(Boolean).sort().pop() || '';
+
+  document.getElementById('k-obs').textContent      = totalObs;
+  document.getElementById('k-obs-sub').textContent  = gruposU + ' capturas de campo';
+  document.getElementById('k-ageb').textContent     = agebs;
+  document.getElementById('k-ageb-sub').textContent = agebs === 0 ? 'fuera de zona' : 'de 42 en levantamiento';
+  document.getElementById('k-mun').textContent      = muns;
+  document.getElementById('k-mun-sub').textContent  = muns + ' municipio' + (muns !== 1 ? 's' : '') + ' visitado' + (muns !== 1 ? 's' : '');
+  document.getElementById('k-jornadad').textContent = fechas;
+  document.getElementById('k-jornada-sub').textContent = ultFecha ? 'Última: ' + ultFecha : '';
+}
+
+// ── MAP ───────────────────────────────────────────────────────────────────────
+var GM_COLOR = {'Muy alto':'#C0392B','Alto':'#D35400','Medio':'#B7950B','Bajo':'#2E86AB'};
+var CAT_COLOR = {
+  'Educación':'#8e44ad','Salud':'#27ae60',
+  'Vivienda · Condiciones':'#e67e22','Incidencia Urbana':'#D85A30','General':'#888'
+};
+
+function renderMap() {
+  if (!map) {
+    map = L.map('map', { zoomControl:true, attributionControl:false });
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom:20 }).addTo(map);
+
+    // AGEB layer placeholder — uses inline data if available
+    if (typeof GEOJSON !== 'undefined') {
+      L.geoJSON(GEOJSON, {
+        style: function(f) { return { color:'#999', weight:1, fillColor: GM_COLOR[f.properties.GM_20_2021]||'#ccc', fillOpacity:0.25 }; }
+      }).addTo(map);
+    }
+
+    // Legend
+    var legend = L.control({ position:'bottomright' });
+    legend.onAdd = function() {
+      var d = L.DomUtil.create('div','map-legend');
+      d.innerHTML = Object.entries(CAT_COLOR).map(function(e) {
+        return '<div class="ml-row"><div class="ml-sq" style="background:'+e[1]+';border-radius:50%"></div>'+e[0]+'</div>';
+      }).join('');
+      return d;
+    };
+    legend.addTo(map);
+
+    markersLayer = L.layerGroup().addTo(map);
+  }
+
+  markersLayer.clearLayers();
+
+  // Group by grupo_id, show one marker per capture
+  var grupos = {};
+  filtered.forEach(function(d) {
+    var gid = d.grupo_id || d.id;
+    if (!grupos[gid]) grupos[gid] = [];
+    grupos[gid].push(d);
+  });
+
+  var bounds = [];
+  Object.values(grupos).forEach(function(grp) {
+    var f = grp[0];
+    var lat = parseFloat(f.lat), lon = parseFloat(f.lon);
+    if (isNaN(lat) || isNaN(lon)) return;
+    bounds.push([lat, lon]);
+
+    var col = CAT_COLOR[f.categoria] || '#888';
+    var icon = L.divIcon({
+      className:'',
+      html: '<div style="width:10px;height:10px;border-radius:50%;background:'+col+';border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3)"></div>',
+      iconSize:[10,10], iconAnchor:[5,5]
+    });
+
+    var cats = [...new Set(grp.map(function(d){return d.observacion}).filter(Boolean))];
+    var popup = '<b>' + (f.ageb ? 'AGEB '+f.ageb : 'Fuera de zona') + '</b>' +
+      (f.municipio ? ' · '+f.municipio : '') + '<br>' +
+      '<small>' + cats.slice(0,4).join(', ') + (cats.length>4?'…':'') + '</small>';
+
+    L.marker([lat, lon], { icon:icon }).bindPopup(popup).addTo(markersLayer);
+  });
+
+  if (bounds.length > 0) map.fitBounds(bounds, { padding:[20,20], maxZoom:14 });
+  document.getElementById('map-count').textContent = Object.keys(grupos).length + ' capturas';
+}
+
+// ── GRADO BARS ────────────────────────────────────────────────────────────────
+function renderGradoBars() {
+  var order = ['Muy alto','Alto','Medio','Bajo'];
+  var cols  = { 'Muy alto':'#C0392B','Alto':'#D35400','Medio':'#B7950B','Bajo':'#2E86AB' };
+  var counts = {};
+  order.forEach(function(g) { counts[g] = 0; });
+  filtered.forEach(function(d) { if (counts[d.grado_marginacion] !== undefined) counts[d.grado_marginacion]++; });
+  var total = filtered.length || 1;
+
+  document.getElementById('grado-bars').innerHTML = order.map(function(g) {
+    var n = counts[g], pct = Math.round(n/total*100);
+    return '<div class="gbar-row">' +
+      '<div class="gbar-label">'+g+'</div>' +
+      '<div class="gbar-track"><div class="gbar-fill" style="width:'+pct+'%;background:'+cols[g]+'">' +
+        (pct > 8 ? '<span>'+pct+'%</span>' : '') +
+      '</div></div>' +
+      '<div class="gbar-pct">'+n+'</div>' +
+    '</div>';
+  }).join('');
+}
+
+// ── CATEGORY CHART ────────────────────────────────────────────────────────────
+function renderCatChart() {
+  var counts = {};
+  filtered.forEach(function(d) { if (d.categoria) counts[d.categoria] = (counts[d.categoria]||0)+1; });
+  var labels = Object.keys(counts), vals = Object.values(counts);
+  var colors = labels.map(function(l) { return CAT_COLOR[l]||'#999'; });
+
+  if (charts.cat) charts.cat.destroy();
+  charts.cat = new Chart(document.getElementById('ch-cat'), {
+    type: 'doughnut',
+    data: { labels:labels, datasets:[{ data:vals, backgroundColor:colors, borderWidth:2, borderColor:'#fff' }] },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins: { legend:{ position:'right', labels:{ font:{family:'Barlow',size:11}, boxWidth:10 } } }
+    }
+  });
+}
+
+// ── MUNICIPIO CHART ───────────────────────────────────────────────────────────
+function renderMunChart() {
+  var counts = {};
+  filtered.forEach(function(d) { if (d.municipio) counts[d.municipio] = (counts[d.municipio]||0)+1; });
+  var sorted = Object.entries(counts).sort(function(a,b){return b[1]-a[1]});
+  var labels = sorted.map(function(x){return x[0]}), vals = sorted.map(function(x){return x[1]});
+
+  if (charts.mun) charts.mun.destroy();
+  charts.mun = new Chart(document.getElementById('ch-mun'), {
+    type: 'bar',
+    data: { labels:labels, datasets:[{ data:vals, backgroundColor:'#2E86AB', borderRadius:3 }] },
+    options: {
+      indexAxis:'y', responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false} },
+      scales:{
+        x:{ grid:{display:false}, ticks:{font:{family:'Space Mono',size:10}} },
+        y:{ grid:{display:false}, ticks:{font:{family:'Barlow',size:11}} }
+      }
+    }
+  });
+}
+
+// ── INCIDENCIAS TABLE ─────────────────────────────────────────────────────────
+function renderIncTable() {
+  var inc = filtered.filter(function(d){ return d.categoria === 'Incidencia Urbana' && d.observacion; });
+  var counts = {};
+  inc.forEach(function(d){ counts[d.observacion] = (counts[d.observacion]||0)+1; });
+  var sorted = Object.entries(counts).sort(function(a,b){return b[1]-a[1]});
+  var max = sorted.length ? sorted[0][1] : 1;
+
+  document.getElementById('inc-total').textContent = inc.length + ' registros';
+  document.getElementById('inc-tbody').innerHTML = sorted.length
+    ? sorted.map(function(e) {
+        var w = Math.round(e[1]/max*100);
+        return '<tr><td>'+e[0]+'</td>' +
+          '<td><div class="inc-bar" style="width:'+w+'%"></div></td>' +
+          '<td class="inc-n">'+e[1]+'</td></tr>';
+      }).join('')
+    : '<tr><td colspan="3" style="text-align:center;color:#aaa;padding:20px">Sin incidencias en la selección</td></tr>';
+}
+
+// ── AGEB TABLE ────────────────────────────────────────────────────────────────
+function renderAGEBTable() {
+  var agebs = {};
+  filtered.filter(function(d){ return d.ageb; }).forEach(function(d) {
+    if (!agebs[d.cvegeo]) agebs[d.cvegeo] = { ageb:d.ageb, mun:d.municipio, grado:d.grado_marginacion, im:d.im_2020, n:0 };
+    agebs[d.cvegeo].n++;
+  });
+  var rows = Object.values(agebs).sort(function(a,b){ return b.n-a.n; });
+  var badge = { 'Muy alto':'badge-ma','Alto':'badge-al','Medio':'badge-me','Bajo':'badge-ba' };
+
+  document.getElementById('ageb-tbody').innerHTML = rows.length
+    ? rows.map(function(r) {
+        return '<tr>' +
+          '<td><b>'+r.ageb+'</b></td>' +
+          '<td>'+r.mun+'</td>' +
+          '<td style="font-family:\'Space Mono\',monospace;font-size:11px">'+(r.im?parseFloat(r.im).toFixed(1):'—')+'</td>' +
+          '<td><span class="badge '+(badge[r.grado]||'')+'">'+r.grado+'</span></td>' +
+          '<td style="font-family:\'Space Mono\',monospace;font-size:11px;text-align:right">'+r.n+'</td>' +
+        '</tr>';
+      }).join('')
+    : '<tr><td colspan="5" style="text-align:center;color:#aaa;padding:20px">Sin AGEBs identificados</td></tr>';
+}
+
+// ── TIMELINE CHART ────────────────────────────────────────────────────────────
+function renderTimeline() {
+  var counts = {};
+  filtered.forEach(function(d) {
+    if (!d.fecha) return;
+    counts[d.fecha] = (counts[d.fecha] || 0) + 1;
+  });
+
+  var labels = Object.keys(counts).sort();
+  var vals   = labels.map(function(l) { return counts[l]; });
+
+  if (charts.time) charts.time.destroy();
+  charts.time = new Chart(document.getElementById('ch-time'), {
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: 'Observaciones',
+        data: vals,
+        backgroundColor: 'rgba(214,90,48,.7)',
+        borderColor: '#D85A30',
+        borderWidth: 1,
+        borderRadius: 3
+      }, {
+        label: 'Acumulado',
+        data: vals.map(function(_, i) { return vals.slice(0,i+1).reduce(function(a,b){return a+b},0); }),
+        type: 'line',
+        borderColor: '#2E86AB',
+        borderWidth: 2,
+        pointRadius: 3,
+        pointBackgroundColor: '#2E86AB',
+        fill: false,
+        tension: 0.3,
+        yAxisID: 'y2'
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode:'index', intersect:false },
+      plugins: {
+        legend: { labels: { font:{family:'Barlow',size:11}, boxWidth:10 } }
+      },
+      scales: {
+        x: { grid:{display:false}, ticks:{font:{family:'Space Mono',size:10}} },
+        y: { grid:{color:'#f0ede8'}, ticks:{font:{family:'Space Mono',size:10}}, title:{display:true,text:'por jornada',font:{family:'Barlow',size:10}} },
+        y2: { position:'right', grid:{display:false}, ticks:{font:{family:'Space Mono',size:10}}, title:{display:true,text:'acumulado',font:{family:'Barlow',size:10}} }
+      }
+    }
+  });
+}
+
+// ── INIT MAP EARLY ────────────────────────────────────────────────────────────
+// Show empty map at load so tiles are ready
+window.addEventListener('load', function() {
+  // Init map
+  if (!map) {
+    map = L.map('map', { zoomControl:true, attributionControl:false });
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', { maxZoom:20 }).addTo(map);
+    map.setView([25.67, -100.31], 11);
+    markersLayer = L.layerGroup().addTo(map);
+  }
+  // Auto-fetch data
+  autoLoad();
+});
+</script>
+
+</body>
+</html>
